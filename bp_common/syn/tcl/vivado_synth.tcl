@@ -12,6 +12,10 @@ set HARDFLOAT_DIR $::env(HARDFLOAT_DIR)
 
 set REPORT_DIR $::env(REPORT_DIR)
 
+set proj_name "blackparrot_test"
+set part "xc7z020clg400-1"
+create_project -force $proj_name ./$proj_name -part $part
+
 set f [split [string trim [read [open "flist.vcs" r]]] "\n"]
 set flist [list ]
 set dir_list [list ]
@@ -36,14 +40,23 @@ foreach x $f {
   }
 }
 
-set_part $PART
+puts $flist
+#set_part $PART
 read_verilog -sv $flist
-read_xdc design.xdc
+#read_xdc design.xdc
 
-synth_design -top wrapper -part $PART -include_dirs $dir_list -flatten_hierarchy none
-report_utilization -file $REPORT_DIR/hier_util.rpt -hierarchical -hierarchical_percentages
-report_timing_summary -file $REPORT_DIR/timing.rpt
+set top_file [list ]
+lappend top_file ""
+
+set fileset_obj [get_filesets sources_1]
+add_files -fileset $fileset_obj $top_file
+
+set_property top main_top [current_fileset]
+
+synth_design -include_dirs $dir_list -flatten_hierarchy none
+#report_utilization -file $REPORT_DIR/hier_util.rpt -hierarchical -hierarchical_percentages
+#report_timing_summary -file $REPORT_DIR/timing.rpt
 # Rename submodules to avoid name conflicts with unsynth versions
-rename_ref -prefix_all synth_
-write_verilog -force -mode funcsim wrapper_synth.sv
+#rename_ref -prefix_all synth_
+#write_verilog -force -mode funcsim wrapper_synth.sv
 
