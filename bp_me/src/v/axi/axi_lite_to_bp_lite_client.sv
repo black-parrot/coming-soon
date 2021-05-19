@@ -68,38 +68,20 @@ module axi_lite_to_bp_lite_client
 
   // declaring i/o command and response struct type and size
   `declare_bp_bedrock_mem_if(paddr_width_p, cce_block_width_p, lce_id_width_p, lce_assoc_p, cce);
-
-  bp_bedrock_cce_mem_msg_s io_cmd_cast_o, io_resp_cast_i;
-  bp_bedrock_cce_mem_payload_s io_cmd_cast_payload, io_resp_cast_payload;
-  assign io_cmd_o       = io_cmd_cast_o;
-  assign io_resp_cast_i = io_resp_i;
-
-  // intermediate values for io_cmd_data_o resulted from a generate block
-  logic [axi_data_width_p-1:0] io_cmd_data_lo;
-  for (genvar i = 0; i < axi_strb_width_lp; i++) begin : io_cmd_data
-    assign io_cmd_data_lo[i*8+:8] = (s_axi_lite_wstrb_i[i])
-                                  ? s_axi_lite_wdata_i[i*8+:8]
-                                  : 8'b0;
-  end
-
-  // axi client device read or write channel validity
-  logic axi_lite_r_v, axi_lite_w_v;
-  assign axi_lite_w_v = s_axi_lite_wvalid_i & s_axi_lite_awvalid_i;
-  assign axi_lite_r_v = s_axi_lite_arvalid_i;
+  `bp_cast_o(bp_bedrock_cce_mem_msg_s, io_cmd);
+  `bp_cast_i(bp_bedrock_cce_mem_msg_s, io_resp);
 
   // Declaring all possible states
-  enum {e_wait, e_read_data_tx, e_write_resp} state_r, state_n;
+  enum {e_wait, e_read_resp, e_write_resp} state_r, state_n;
 
-  // Combinational Logic
+  bp_bedrock_cce_mem_payload_s io_cmd_cast_payload, io_resp_cast_payload;
   always_comb 
     begin
       // BP side
       io_cmd_cast_o        = '0;
-			io_cmd_cast_payload  = '0;
+      io_cmd_cast_payload  = '{lce_id: lce_id_i, default: '0};
       io_cmd_v_o           = '0;
-      io_resp_ready_o      = (io_resp_cast_i.header.msg_type == e_bedrock_mem_uc_rd)
-														 ? s_axi_lite_rready_i
-														 : io_resp_v_i;
+      io_resp_ready_o      = '0;
 
       // WRITE ADDRESS CHANNEL SIGNALS
       s_axi_lite_awready_o = '0;
@@ -119,9 +101,6 @@ module axi_lite_to_bp_lite_client
       s_axi_lite_bresp_o   = e_axi_resp_okay;
       s_axi_lite_bvalid_o  = '0;
 
-      // other logic
-      state_n              = state_r;
-
       case (s_axi_lite_wstrb_i)
         axi_strb_width_lp'('h1)  : io_cmd_cast_o.header.size = e_bedrock_msg_size_1;
         axi_strb_width_lp'('h3)  : io_cmd_cast_o.header.size = e_bedrock_msg_size_2;
@@ -129,56 +108,53 @@ module axi_lite_to_bp_lite_client
         axi_strb_width_lp'('hFF) : io_cmd_cast_o.header.size = e_bedrock_msg_size_8;
       endcase
 
-      case (state_r) 
-        e_wait : begin
+      unique casez (state_r) 
+        e_wait:
+          begin
+            s_axi_lite_arready_o = 1'b1;
+            s_axi_lite_awready_o = 1'b1;
+            s_axi_lite_wready_o  = 1'b1;
 
-          if (s_axi_lite_arvalid_i) 
-            begin
-              io_cmd_cast_payload.lce_id    = lce_id_i;
-              io_cmd_cast_o.header.addr     = s_axi_lite_araddr_i;
-              io_cmd_cast_o.header.msg_type = e_bedrock_mem_uc_rd;
-	      			io_cmd_cast_o.header.payload  = io_cmd_cast_payload;
-              io_cmd_v_o                    = axi_lite_r_v;
-          
-              state_n                       = (io_cmd_yumi_i & axi_lite_r_v)
-                                            ? e_read_data_tx
-                                            : state_r;
-            end
+            if (s_axi_lite_arvalid_i) 
+              begin
+                io_cmd_cast_o.header.addr     = s_axi_lite_araddr_i;
+                io_cmd_cast_o.header.msg_type = e_bedrock_mem_uc_rd;
+                io_cmd_cast_o.header.payload  = io_cmd_cast_payload;
+                io_cmd_v_o                    = s_axi_lite_arvalid_i;
+            
+                state_n = io_cmd_yumi_i ? e_read_resp : e_wait;
+              end
 
-          else if (s_axi_lite_awvalid_i) 
-            begin
-              io_cmd_cast_payload.lce_id               = lce_id_i;
-              io_cmd_cast_o.header.addr                = s_axi_lite_awaddr_i;
-              io_cmd_cast_o.header.msg_type            = e_bedrock_mem_uc_wr;
-	      io_cmd_cast_o.header.payload             = io_cmd_cast_payload;
-              io_cmd_cast_o.data[axi_data_width_p-1:0] = io_cmd_data_lo;
-              io_cmd_v_o                               = axi_lite_w_v;
-          
-              state_n                                  = (io_cmd_yumi_i & axi_lite_w_v) 
-                                                       ? e_write_resp
-                                                       : state_r;
-            end
-        end
+            else if (s_axi_lite_awvalid_i & s_axi_lite_wvalid_i) 
+              begin
+                io_cmd_cast_o.header.addr                = s_axi_lite_awaddr_i;
+                io_cmd_cast_o.header.msg_type            = e_bedrock_mem_uc_wr;
+                io_cmd_cast_o.header.payload             = io_cmd_cast_payload;
+                io_cmd_cast_o.data[axi_data_width_p-1:0] = s_axi_lite_wdata_i;
+                io_cmd_v_o                               = (s_axi_lite_awvalid_i & s_axi_lite_wvalid_i);
+            
+                state_n = io_cmd_yumi_i ? e_write_resp : e_wait;
+              end
+          end
 
-        e_write_resp : begin
-          s_axi_lite_awready_o = 1'b1;
-          s_axi_lite_wready_o  = 1'b1;
+        e_write_resp:
+          begin
+            s_axi_lite_bvalid_o = io_resp_v_i;
+            io_resp_ready_o     = s_axi_lite_bready_i;
 
-          s_axi_lite_bvalid_o = 1'b1;
-          state_n             = (s_axi_lite_bready_i)
-                              ? e_wait
-                              : state_r;
-        end
+            state_n = (s_axi_lite_bready_i & s_axi_lite_bvalid_o) ? e_wait : state_r;
+          end
 
-        e_read_data_tx : begin
-          s_axi_lite_arready_o = 1'b1;
-          s_axi_lite_rdata_o  = io_resp_cast_i.data[axi_data_width_p-1:0];
-          s_axi_lite_rvalid_o = io_resp_v_i;
-          state_n             = (s_axi_lite_rready_i)
-                              ? e_wait
-                              : state_r;
-        end
+        e_read_resp:
+          begin
+            s_axi_lite_rdata_o  = io_resp_cast_i.data[0+:axi_data_width_p];
+            s_axi_lite_rvalid_o = io_resp_v_i;
+            io_resp_ready_o     = s_axi_lite_rready_i;
 
+            state_n = (s_axi_lite_rready_i & s_axi_lite_rvalid_o) ? e_wait : state_r;
+          end
+
+        default: state_n = state_r;
       endcase
     end
 
@@ -190,11 +166,16 @@ module axi_lite_to_bp_lite_client
         state_r <= state_n;
     end
 
+  if (axi_data_width_p != 64 && axi_data_width_p != 32)
+    $fatal("AXI4-LITE only supports a data width of 32 or 64bits.");
+
   //synopsys translate_off
-  initial 
+  always_ff @(negedge clk_i)
     begin
-      assert (axi_data_width_p==64 || axi_data_width_p==32) else $error("AXI4-LITE only supports a data width of 32 or 64bits.");
-      assert (s_axi_lite_awprot_i == 3'b000) else $info("AXI4-LITE access permission mode is not supported.");
+      if (s_axi_lite_awprot_i != 3'b000)
+        $error("AXI4-LITE access permission mode is not supported.");
     end
   //synopsys translate_on
+
 endmodule
+
