@@ -159,12 +159,10 @@ module axi_lite_to_bp_lite_client
     end
 
   always_ff @(posedge clk_i) 
-    begin
-      if (reset_i)
-        state_r <= e_wait;
-      else
-        state_r <= state_n;
-    end
+    if (reset_i)
+      state_r <= e_wait;
+    else
+      state_r <= state_n;
 
   if (axi_data_width_p != 64 && axi_data_width_p != 32)
     $fatal("AXI4-LITE only supports a data width of 32 or 64bits.");
