@@ -168,6 +168,7 @@ module bp_be_pipe_mem
   logic [ptag_width_p-1:0] dtlb_ptag_lo;
   bp_mmu
    #(.bp_params_p(bp_params_p)
+
      ,.tlb_els_4k_p(dtlb_els_4k_p)
      ,.tlb_els_1g_p(dtlb_els_1g_p)
      )

@@ -6,6 +6,7 @@
 +incdir+$BASEJUMP_STL_DIR/bsg_misc
 +incdir+$BASEJUMP_STL_DIR/bsg_test
 +incdir+$BASEJUMP_STL_DIR/bsg_noc
++incdir+$BASEJUMP_STL_DIR/bsg_cache
 # HardFloat includes
 +incdir+$HARDFLOAT_DIR/source
 +incdir+$HARDFLOAT_DIR/source/RISCV
@@ -72,6 +73,7 @@ $BASEJUMP_STL_DIR/bsg_dataflow/bsg_serial_in_parallel_out_full.v
 $BASEJUMP_STL_DIR/bsg_dataflow/bsg_serial_in_parallel_out_passthrough.v
 $BASEJUMP_STL_DIR/bsg_dataflow/bsg_shift_reg.v
 $BASEJUMP_STL_DIR/bsg_dataflow/bsg_two_fifo.v
+#$BASEJUMP_STL_DIR/bsg_mem/bsg_cam_1r1w.v
 $BASEJUMP_STL_DIR/bsg_mem/bsg_cam_1r1w_replacement.v
 $BASEJUMP_STL_DIR/bsg_mem/bsg_cam_1r1w_sync.v
 $BASEJUMP_STL_DIR/bsg_mem/bsg_cam_1r1w_tag_array.v

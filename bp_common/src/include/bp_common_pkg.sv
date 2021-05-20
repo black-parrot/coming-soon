@@ -8,6 +8,8 @@
  *
  */
 
+`include "bsg_defines.v"
+
 package bp_common_pkg;
 
   /*

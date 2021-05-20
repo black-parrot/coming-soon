@@ -11,6 +11,7 @@ module bp_tlb
  import bp_common_pkg::*;
  #(parameter bp_params_e bp_params_p = e_bp_default_cfg
    `declare_bp_proc_params(bp_params_p)
+   // used instead of {i,d}tlb_els_4k_p, tlb_els_1g_p parameter in above struct
    , parameter `BSG_INV_PARAM(els_1g_p )
    , parameter `BSG_INV_PARAM(els_4k_p )
 
@@ -37,7 +38,7 @@ module bp_tlb
 
   `declare_bp_core_if(vaddr_width_p, paddr_width_p, asid_width_p, branch_metadata_fwd_width_p);
   // Signals must be 1 width
-  localparam els_1g_lp = `BSG_MAX(els_1g_p, 1);
+  parameter els_1g_lp = `BSG_MAX(els_1g_p, 1);
 
   localparam r_entry_low_bits_lp  = (sv39_levels_gp-1)*sv39_page_idx_width_gp;
   localparam r_entry_high_bits_lp = $bits(bp_pte_leaf_s) - r_entry_low_bits_lp;

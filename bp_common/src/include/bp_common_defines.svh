@@ -12,5 +12,12 @@
   `include "bp_common_rv64_instr_defines.svh"
   `include "bp_common_rv64_csr_defines.svh"
 
+  `include "bp_common_aviary_defines.svh"
+
+  // floatControlWidth
+  `include "HardFloat_consts.vi"
+
+  // flControlDefault
+  `include "HardFloat_specialize.vi"
 `endif
 

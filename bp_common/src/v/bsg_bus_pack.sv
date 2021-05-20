@@ -1,3 +1,4 @@
+`include "bsg_defines.v"
 
 module bsg_bus_pack
  #(// Width of the entire bus

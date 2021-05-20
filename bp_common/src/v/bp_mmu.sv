@@ -11,7 +11,7 @@ module bp_mmu
    , parameter `BSG_INV_PARAM(tlb_els_4k_p )
    , parameter `BSG_INV_PARAM(tlb_els_1g_p )
 
-   , localparam entry_width_lp = `bp_pte_leaf_width(paddr_width_p)
+   , parameter entry_width_lp = `bp_pte_leaf_width(paddr_width_p)
    )
   (input                                              clk_i
    , input                                            reset_i
@@ -174,5 +174,10 @@ module bp_mmu
 
 endmodule
 
+<<<<<<< HEAD
 `BSG_ABSTRACT_MODULE(bp_mmu)
 
+=======
+
+`BSG_ABSTRACT_MODULE(bp_mmu)
+>>>>>>> reduce vivado load time from 18min to 2min, memory usage from 20GB to much less
