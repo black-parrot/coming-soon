@@ -15,7 +15,7 @@
 [submodule "external/basejump_stl"]
     path = external/basejump_stl
     url = https://github.com/bespoke-silicon-group/basejump_stl.git
-    branch = master
+    branch = bsg_inv_param
     update = checkout
 [submodule "external/HardFloat"]
     path = external/HardFloat
