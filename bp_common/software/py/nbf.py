@@ -75,7 +75,7 @@ class NBF:
 
   # constructor
   def __init__(self, ncpus, ucode_file, mem_file, checkpoint_file, config, skip_zeros, addr_width,
-          data_width, validate):
+          data_width, verify):
 
     # input parameters
     self.ncpus = ncpus
@@ -86,7 +86,7 @@ class NBF:
     self.skip_zeros = skip_zeros
     self.addr_width = (addr_width+3)/4*4
     self.data_width = data_width
-    self.validate = validate
+    self.verify = verify
 
     # Grab various files
     if self.mem_file:
@@ -159,7 +159,7 @@ class NBF:
     addr_step = 0
     count = 0
     assembled_hex = ""
-    base_addr = 0x80000000
+    base_addr = 0x0
 
     f = open(mem_file, "r")
     lines = f.readlines()
@@ -237,8 +237,8 @@ class NBF:
       self.print_nbf_allcores(3, cfg_base_addr + cfg_reg_dcache_mode, 1)
       self.print_nbf_allcores(3, cfg_base_addr + cfg_reg_cce_mode, 1)
 
-      # Read back I$, D$ and CCE modes for verification
-      if self.validate:
+      if self.verify:
+        # Read back I$, D$ and CCE modes for verification
         self.print_nbf(0x12, cfg_base_addr + cfg_reg_icache_mode, 1)
         self.print_nbf(0x12, cfg_base_addr + cfg_reg_dcache_mode, 1)
         self.print_nbf(0x12, cfg_base_addr + cfg_reg_cce_mode, 1)
@@ -278,10 +278,10 @@ if __name__ == "__main__":
   parser.add_argument('--skip_zeros', dest='skip_zeros', action='store_true', help='skip zero DRAM entries')
   parser.add_argument('--addr_width', type=int, default=40, help='Physical address width')
   parser.add_argument('--data_width', type=int, default=64, help='Data width')
-  parser.add_argument('--validate', dest='validate', action='store_true', help='Data width')
+  parser.add_argument("--verify", dest='verify', action='store_true', help='Read back mode registers')
 
   args = parser.parse_args()
 
   converter = NBF(args.ncpus, args.ucode_file, args.mem_file, args.checkpoint_file, args.config,
-          args.skip_zeros, args.addr_width, args.data_width, args.validate)
+          args.skip_zeros, args.addr_width, args.data_width, args.verify)
   converter.dump()
