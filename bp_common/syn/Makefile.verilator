@@ -44,8 +44,8 @@ VERILATOR_PLUSARGS =
 LINT_DIR  := $(RESULTS_DIR)/$(TB).$(CFG).$(TAG).lint
 BUILD_DIR := $(RESULTS_DIR)/$(TB).$(CFG).$(TAG).build
 SIM_DIR   := $(RESULTS_DIR)/$(TB).$(CFG).$(TAG).cov
-SIM_DIR   := $(RESULTS_DIR)/$(TB).$(CFG).$(TAG).sim.$(SUITE).$(PROG)
-$(TOUCH_DIR) $(RESULTS_DIR) $(LOG_DIR) $(REPORT_DIR) $(LINT_DIR) $(BUILD_DIR) $(SIM_DIR):
+COV_DIR   := $(RESULTS_DIR)/$(TB).$(CFG).$(TAG).sim.$(SUITE).$(PROG)
+$(TOUCH_DIR) $(RESULTS_DIR) $(LOG_DIR) $(REPORT_DIR) $(LINT_DIR) $(BUILD_DIR) $(SIM_DIR) $(COV_DIR):
 	mkdir -p $@
 
 .PHONY: clean.sc lint.sc build.sc cov.sc

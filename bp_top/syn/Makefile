@@ -23,6 +23,7 @@ include $(TB_PATH)/$(TB)/Makefile.params
 include $(TB_PATH)/$(TB)/Makefile.testlist
 include $(BP_COMMON_DIR)/syn/Makefile.common
 include $(BP_COMMON_DIR)/syn/Makefile.dc
+include $(BP_COMMON_DIR)/syn/Makefile.surelog
 include $(BP_COMMON_DIR)/syn/Makefile.sv2v
 include $(BP_COMMON_DIR)/syn/Makefile.verilator
 include $(BP_COMMON_DIR)/syn/Makefile.vcs

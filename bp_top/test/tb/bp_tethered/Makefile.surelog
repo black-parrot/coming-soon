@@ -1,0 +1,7 @@
+
+$(BUILD_DIR)/flist.vcs:
+	@grep -v -e "^\#" $(SYN_PATH)/flist.vcs          > $@
+	@echo wrapper.sv                                >> $@
+
+BUILD_COLLATERAL = $(addprefix $(BUILD_DIR)/, flist.vcs wrapper.sv)
+

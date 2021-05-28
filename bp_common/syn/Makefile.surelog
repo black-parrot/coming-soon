@@ -1,0 +1,46 @@
+override TOOL := surelog
+
+override LOG_DIR     := $(LOG_PATH)/$(TOOL)
+override RESULTS_DIR := $(RESULTS_PATH)/$(TOOL)
+override REPORT_DIR  := $(REPORT_PATH)/$(TOOL)
+override TOUCH_DIR   := $(TOUCH_PATH)/$(TOOL)
+
+## Tools
+SURELOG ?= surelog
+
+BUILD_DIR := $(RESULTS_DIR)/$(TB).$(CFG).$(TAG).build
+$(TOUCH_DIR) $(RESULTS_DIR) $(LOG_DIR) $(REPORT_DIR) $(BUILD_DIR):
+	mkdir -p $@
+
+.PHONY: clean.surelog build.surelog
+
+include $(TB_PATH)/$(TB)/Makefile.surelog
+
+$(BUILD_COLLATERAL): | $(TOUCH_DIR) $(RESULTS_DIR) $(LOG_DIR) $(REPORT_DIR) $(BUILD_DIR)
+
+TOP_MODULE ?= wrapper
+
+SURELOG_OPTS += -DVERILATOR=1
+SURELOG_OPTS += -sverilog
+SURELOG_OPTS += -parse
+SURELOG_OPTS += -timescale=1ps/1ps
+SURELOG_OPTS += -elabuhdm
+SURELOG_OPTS += -d coveruhdm
+SURELOG_OPTS += -verbose
+SURELOG_OPTS += -lowmem
+SURELOG_OPTS += -nobuiltin
+SURELOG_OPTS += --top-module $(TOP_MODULE)
+SURELOG_OPTS += -f flist.vcs
+
+build.surelog: $(BUILD_DIR)/surelog
+build.surelog: BUILD_LOG    := $(LOG_DIR)/$(TB).$(CFG).$(TAG).build.log
+build.surelog: BUILD_REPORT := $(REPORT_DIR)/$(TB).$(CFG).$(TAG).build.rpt
+build.surelog: BUILD_ERROR  := $(REPORT_DIR)/$(TB).$(CFG).$(TAG).build.err
+$(BUILD_DIR)/surelog: $(BUILD_COLLATERAL)
+	$(SURELOG) $(SURELOG_OPTS) $(HDL_DEFINES) $(HDL_PARAMS) -o $(@D) | tee $(BUILD_LOG)
+
+clean.surelog:
+	@rm -rf results/surelog
+	@rm -rf reports/surelog
+	@rm -rf logs/surelog
+
