@@ -46,8 +46,8 @@ module axi_lite_to_bp_lite_client
    , output logic                               s_axi_lite_wready_o
 
    // WRITE RESPONSE CHANNEL SIGNALS
-   , output axi_resp_type_e                     s_axi_lite_bresp_o   
-   , output logic                               s_axi_lite_bvalid_o   
+   , output axi_resp_type_e                     s_axi_lite_bresp_o
+   , output logic                               s_axi_lite_bvalid_o
    , input                                      s_axi_lite_bready_i
 
    // READ ADDRESS CHANNEL SIGNALS
@@ -62,6 +62,15 @@ module axi_lite_to_bp_lite_client
    , output logic                               s_axi_lite_rvalid_o
    , input                                      s_axi_lite_rready_i
   );
+
+   localparam debug_lp = 1;
+
+   // useful debug statement when integrating into an AXI SoC; 32-bit / 64-bit crossovers semantics are complicated with BP
+   if (debug_lp)
+   initial
+     begin
+        $display("## axi_lite_to_bp_lite_client: instantiating with axi_data_width_p=%d, axi_strobe_width_p=%d axi_addr_width_p=%d (%m)\n",axi_data_width_p,axi_strb_width_lp,axi_addr_width_p);
+     end
 
   wire [2:0] unused_0 = s_axi_lite_awprot_i;
   wire [2:0] unused_1 = s_axi_lite_arprot_i;
@@ -79,6 +88,16 @@ module axi_lite_to_bp_lite_client
     begin
       // BP side
       io_cmd_cast_o        = '0;
+
+      // set default header size for reads
+      io_cmd_cast_o.header.size
+        = (axi_data_width_p == 32)
+          ? e_bedrock_msg_size_4
+          : ((axi_data_width_p == 64)
+             ? e_bedrock_msg_size_8
+             : `BSG_UNDEFINED_IN_SIM(e_bedrock_msg_size_4)
+             );
+
       io_cmd_cast_payload  = '{lce_id: lce_id_i, default: '0};
       io_cmd_v_o           = '0;
       io_resp_ready_o      = '0;
@@ -106,6 +125,11 @@ module axi_lite_to_bp_lite_client
         axi_strb_width_lp'('h3)  : io_cmd_cast_o.header.size = e_bedrock_msg_size_2;
         axi_strb_width_lp'('hF)  : io_cmd_cast_o.header.size = e_bedrock_msg_size_4;
         axi_strb_width_lp'('hFF) : io_cmd_cast_o.header.size = e_bedrock_msg_size_8;
+        default:
+          // does nothing in verilator 4.202
+          `BSG_HIDE_FROM_VERILATOR(assert final (reset_i !== '0 || s_axi_lite_wvalid_i == 0) else)
+           if (s_axi_lite_wvalid_i)
+              $warning("%m: received unhandled strobe pattern %b\n",s_axi_lite_wstrb_i);
       endcase
 
       unique casez (state_r) 
@@ -165,7 +189,7 @@ module axi_lite_to_bp_lite_client
       state_r <= state_n;
 
   if (axi_data_width_p != 64 && axi_data_width_p != 32)
-    $fatal("AXI4-LITE only supports a data width of 32 or 64bits.");
+    $fatal("AXI4-LITE only supports a data width of 32 or 64 bits.");
 
   //synopsys translate_off
   always_ff @(negedge clk_i)

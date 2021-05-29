@@ -31,7 +31,9 @@ module bp_clint_slice
 
   `declare_bp_bedrock_mem_if(paddr_width_p, dword_width_gp, lce_id_width_p, lce_assoc_p, xce);
   `declare_bp_memory_map(paddr_width_p, caddr_width_p);
-  
+
+  localparam debug_lp=0;
+
   bp_bedrock_xce_mem_msg_s mem_cmd_li, mem_cmd_lo;
   assign mem_cmd_li = mem_cmd_i;
   
@@ -53,7 +55,7 @@ module bp_clint_slice
   
   logic mipi_cmd_v;
   logic mtimecmp_cmd_v;
-  logic mtime_cmd_v;
+  logic mtime_cmd_v, mtime_cmd_hi_v;
   logic plic_cmd_v;
   logic wr_not_rd;
   
@@ -66,23 +68,34 @@ module bp_clint_slice
       mtimecmp_cmd_v = 1'b0;
       mipi_cmd_v     = 1'b0;
       plic_cmd_v     = 1'b0;
-  
+
+      mtime_cmd_hi_v = 1'b0;
+
       wr_not_rd = mem_cmd_lo.header.msg_type inside {e_bedrock_mem_wr, e_bedrock_mem_uc_wr};
-  
+
       unique
       casez ({local_addr.dev, local_addr.addr})
         mtime_reg_addr_gp        : mtime_cmd_v    = small_fifo_v_lo;
+        mtime_reg_addr_gp+4      : mtime_cmd_hi_v = small_fifo_v_lo; // we support reading from the high word only of mtime
+                                                                     // allows interfacing with 32-bit axi lite bus
+                                                                     // if a 8-byte access is done, top bits are zero'd
         mtimecmp_reg_base_addr_gp: mtimecmp_cmd_v = small_fifo_v_lo;
         mipi_reg_base_addr_gp    : mipi_cmd_v     = small_fifo_v_lo;
         plic_reg_base_addr_gp    : plic_cmd_v     = small_fifo_v_lo;
-        default: begin end
+        default:
+          begin
+             `BSG_HIDE_FROM_VERILATOR(assert final (reset_i !== '0 || !small_fifo_v_lo) else)
+             if (small_fifo_v_lo)
+               $warning("%m: access to illegal address %x\n",
+                        {local_addr.dev, local_addr.addr});
+          end
       endcase
     end
-  
+
   logic [dword_width_gp-1:0] mtime_r, mtime_val_li, mtimecmp_n, mtimecmp_r;
   logic                     mipi_n, mipi_r;
   logic                     plic_n, plic_r;
-  
+
   // TODO: Should be actual RTC
   localparam ds_width_lp = 5;
   localparam [ds_width_lp-1:0] ds_ratio_li = 8;
@@ -153,15 +166,24 @@ module bp_clint_slice
      ,.data_o(plic_r)
      );
   assign external_irq_o = plic_r;
-  
-  wire [dword_width_gp-1:0] rdata_lo = plic_cmd_v
-                                      ? dword_width_gp'(plic_r)
-                                      : mipi_cmd_v
-                                        ? dword_width_gp'(mipi_r)
-                                        : mtimecmp_cmd_v
-                                          ? dword_width_gp'(mtimecmp_r)
-                                          : mtime_r;
-  
+
+  wire [dword_width_gp-1:0] rdata_lo;
+
+   // handles case of invalid address correctly by returning zero
+  bsg_mux_one_hot #(.width_p(dword_width_gp)
+                    ,.els_p(5)
+                    ,.harden_p(0)
+                    ) rdmux
+   (.data_i({    dword_width_gp ' (plic_r)
+               , dword_width_gp ' (mipi_r)
+               , dword_width_gp ' (mtimecmp_r)
+               , dword_width_gp ' (mtime_r)
+               , dword_width_gp ' (mtime_r >> 32)
+             })
+    ,.sel_one_hot_i( {plic_cmd_v, mipi_cmd_v, mtimecmp_cmd_v, mtime_cmd_v, mtime_cmd_hi_v })
+    ,.data_o(rdata_lo)
+    );
+
   bp_bedrock_xce_mem_msg_s mem_resp_lo;
   assign mem_resp_lo =
     '{header : '{
@@ -176,6 +198,21 @@ module bp_clint_slice
   assign mem_resp_o = mem_resp_lo;
   assign mem_resp_v_o = small_fifo_v_lo;
   assign small_fifo_yumi_li = mem_resp_yumi_i;
+
+ if (debug_lp)
+   always @(negedge clk_i)
+     begin
+        if (~reset_i)
+          if (mem_resp_v_o)
+            $display("%m: write=%b response msg_type=%b addr=%h payload=%h size=%h data=%h"
+                     ,wr_not_rd
+                     ,mem_cmd_lo.header.msg_type
+                     ,mem_cmd_lo.header.addr
+                     ,mem_cmd_lo.header.payload
+                     ,mem_cmd_lo.header.size
+                     ,dword_width_gp' (rdata_lo)
+                     );
+     end
 
 endmodule
 
