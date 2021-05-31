@@ -37,7 +37,8 @@ bsg_sv2v_build:
 	$(MAKE) -j1 -C $(bsg_sv2v_dir) tools
 
 surelog_build:
-	$(MAKE) -C $(surelog_dir) DESTDIR=$(BP_TOOLS_INSTALL_DIR) PREFIX="" install
+	$(MAKE) -C $(surelog_dir)
+	$(MAKE) -C $(surelog_dir) PREFIX=$(BP_TOOLS_INSTALL_DIR)
 
 $(eval $(call submodule_tool_template,verilator,$(verilator_dir)))
 $(eval $(call submodule_tool_template,bsg_sv2v,$(bsg_sv2v_dir)))
