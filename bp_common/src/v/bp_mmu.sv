@@ -174,10 +174,5 @@ module bp_mmu
 
 endmodule
 
-<<<<<<< HEAD
 `BSG_ABSTRACT_MODULE(bp_mmu)
 
-=======
-
-`BSG_ABSTRACT_MODULE(bp_mmu)
->>>>>>> reduce vivado load time from 18min to 2min, memory usage from 20GB to much less

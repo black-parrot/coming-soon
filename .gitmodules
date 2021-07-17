@@ -4,13 +4,11 @@
     url = https://github.com/verilator/verilator
     branch = master
     ignore = untracked
-    update = none
 [submodule "tools/bsg_sv2v"]
     path = tools/bsg_sv2v
     url = https://github.com/bespoke-silicon-group/bsg_sv2v
     branch = master
     ignore = untracked
-    update = none
 
 [submodule "external/basejump_stl"]
     path = external/basejump_stl
