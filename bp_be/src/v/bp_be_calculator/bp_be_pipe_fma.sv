@@ -9,7 +9,31 @@
  * Notes:
  *   This module relies on cross-boundary flattening and retiming to achieve
  *     good QoR
+ *   
+ *   TODO remove this after bsg_mul_add
+ *   pipeline_stages_p is used to insert pipelining registers in rawMul for some devices, 
+ *   where automatic backwards retiming from the retiming_chain doesn't help. 
+ *     - No pipelining (default)   : '{0,0}
+ *     - 64 bit, Zynq 7020 @ 50 MHz: '{1,2}
  *
+ *   This module:
+ *            ...
+ *            fma        -> takes pipeline_p
+ *           /   \
+ *      round_*p  \      -> ideally, some x should cross here
+ *      (shunt) (shunt)
+ *         x       y     -> remaining pipeline (retiming_chain)
+ *         |       |
+ *     fma_out  imul_out
+ *
+ *   fma:
+ *         preMul
+ *          /  \
+ *         0    0        -> pipeline_p[0]
+ *         | (mulAdd)    -> Integer MulAdd (uses DSP on Zynq 7020)
+ *         1    1        -> pipeline_p[1]
+ *          \  /
+ *         postMul
  */
 `include "bp_common_defines.svh"
 `include "bp_be_defines.svh"
@@ -19,7 +43,7 @@ module bp_be_pipe_fma
  import bp_be_pkg::*;
  #(parameter bp_params_e bp_params_p = e_bp_default_cfg
    `declare_bp_proc_params(bp_params_p)
-
+   , parameter pipeline_stages_p = 0, //default, no pipelining: 0; Zynq 7020 @ 50 MHz: 3
    , parameter imul_latency_p = "inv"
    , parameter fma_latency_p  = "inv"
 
@@ -59,8 +83,10 @@ module bp_be_pipe_fma
   // Control bits for the FPU
   //   The control bits control tininess, which is fixed in RISC-V
   rv64_frm_e frm_li;
+  rv64_frm_e frm_r;
   assign frm_li = (instr.t.fmatype.rm == e_dyn) ? frm_dyn_i : rv64_frm_e'(instr.t.fmatype.rm);
   wire [`floatControlWidth-1:0] control_li = `flControl_default;
+  wire [`floatControlWidth-1:0] control_r;
 
   wire is_fadd_li    = (decode.fu_op == e_fma_op_fadd);
   wire is_fsub_li    = (decode.fu_op == e_fma_op_fsub);
@@ -105,13 +131,16 @@ module bp_be_pipe_fma
   logic [dp_exp_width_gp+1:0] fma_out_sexp;
   logic [dp_sig_width_gp+2:0] fma_out_sig;
   logic [dword_width_gp-1:0] imul_out;
+
   mulAddRecFNToRaw
    #(.expWidth(dp_exp_width_gp)
      ,.sigWidth(dp_sig_width_gp)
+     ,.pipelineStages(pipeline_stages_p)
      ,.imulEn(1)
      )
    fma
-    (.control(control_li)
+    (.clock(clk_i),
+     .control(control_li)
      ,.op(fma_op_li)
      ,.a(fma_a_li)
      ,.b(fma_b_li)
@@ -128,6 +157,26 @@ module bp_be_pipe_fma
      ,.out_imul(imul_out)
      );
 
+  logic reservation_v_imul_r, decode_pipe_mul_v_r, decode_opw_v_r;
+  bsg_dff_chain
+   #(.width_p($bits({reservation.v, decode.pipe_mul_v, decode.opw_v}))
+     ,.num_stages_p(imul_latency_p-pipeline_stages_p))
+    shunt_imul
+    (.clk_i(clk_i)
+     ,.data_i({reservation.v, decode.pipe_mul_v, decode.opw_v})
+     ,.data_o({reservation_v_imul_r, decode_pipe_mul_v_r, decode_opw_v_r})
+    );
+
+  logic reservation_v_fma_r, decode_pipe_fma_v_r, decode_ops_v_r;
+  bsg_dff_chain
+   #(.width_p($bits({control_li, frm_li, reservation.v, decode.pipe_fma_v, decode.ops_v}))
+     ,.num_stages_p(fma_latency_p-pipeline_stages_p))
+    shunt_fma
+    (.clk_i(clk_i)
+     ,.data_i({control_li, frm_li, reservation.v, decode.pipe_fma_v, decode.ops_v})
+     ,.data_o({control_r, frm_r, reservation_v_fma_r, decode_pipe_fma_v_r, decode_ops_v_r})
+    );
+
   logic [dp_rec_width_gp-1:0] fma_dp_final;
   rv64_fflags_s fma_dp_fflags;
   roundAnyRawFNToRecFN
@@ -137,7 +186,7 @@ module bp_be_pipe_fma
      ,.outSigWidth(dp_sig_width_gp)
      )
    round_dp
-    (.control(control_li)
+    (.control(control_r) //constant?
      ,.invalidExc(invalid_exc)
      ,.infiniteExc('0)
      ,.in_isNaN(is_nan)
@@ -146,7 +195,7 @@ module bp_be_pipe_fma
      ,.in_sign(fma_out_sign)
      ,.in_sExp(fma_out_sexp)
      ,.in_sig(fma_out_sig)
-     ,.roundingMode(frm_li)
+     ,.roundingMode(frm_r)
      ,.out(fma_dp_final)
      ,.exceptionFlags(fma_dp_fflags)
      );
@@ -160,7 +209,7 @@ module bp_be_pipe_fma
      ,.outSigWidth(sp_sig_width_gp)
      )
    round_sp
-    (.control(control_li)
+    (.control(control_r)
      ,.invalidExc(invalid_exc)
      ,.infiniteExc('0)
      ,.in_isNaN(is_nan)
@@ -169,7 +218,7 @@ module bp_be_pipe_fma
      ,.in_sign(fma_out_sign)
      ,.in_sExp(fma_out_sexp)
      ,.in_sig(fma_out_sig)
-     ,.roundingMode(frm_li)
+     ,.roundingMode(frm_r)
      ,.out(fma_sp_final)
      ,.exceptionFlags(fma_sp_fflags)
      );
@@ -186,24 +235,27 @@ module bp_be_pipe_fma
                              ,fract: {fma_sp_final.fract, (dp_sig_width_gp-sp_sig_width_gp)'(0)}
                              };
 
-  assign fma_result = '{sp_not_dp: decode.ops_v, rec: decode.ops_v ? fma_sp2dp_final : fma_dp_final};
-  assign fma_fflags = decode.ops_v ? fma_sp_fflags : fma_dp_fflags;
+  assign fma_result = '{sp_not_dp: decode_ops_v_r, rec: decode_ops_v_r ? fma_sp2dp_final : fma_dp_final};
+  assign fma_fflags = decode_ops_v_r ? fma_sp_fflags : fma_dp_fflags;
 
   wire [dpath_width_gp-1:0] imulw_out = {{word_width_gp{imul_out[word_width_gp-1]}}, imul_out[0+:word_width_gp]};
-  wire [dpath_width_gp-1:0] imul_result = decode.opw_v ? imulw_out : imul_out;
-  wire imul_v_li = reservation.v & reservation.decode.pipe_mul_v;
+  wire [dpath_width_gp-1:0] imul_result = decode_opw_v_r ? imulw_out : imul_out;
+  wire imul_v_li = reservation_v_imul_r & decode_pipe_mul_v_r;
+
   bsg_dff_chain
-   #(.width_p(1+dpath_width_gp), .num_stages_p(imul_latency_p-1))
-   retiming_chain
+   #(.width_p(1+dpath_width_gp) 
+     ,.num_stages_p(imul_latency_p-pipeline_stages_p))
+   imul_retiming_chain
     (.clk_i(clk_i)
 
      ,.data_i({imul_v_li, imul_result})
      ,.data_o({imul_v_o, imul_data_o})
      );
 
-  wire fma_v_li = reservation.v & reservation.decode.pipe_fma_v;
+  wire fma_v_li = reservation_v_fma_r & decode_pipe_fma_v_r;
   bsg_dff_chain
-   #(.width_p(1+$bits(bp_be_fp_reg_s)+$bits(rv64_fflags_s)), .num_stages_p(fma_latency_p-1))
+   #(.width_p(1+$bits(bp_be_fp_reg_s)+$bits(rv64_fflags_s))
+     ,.num_stages_p(fma_latency_p-pipeline_stages_p))
    fma_retiming_chain
     (.clk_i(clk_i)
 
