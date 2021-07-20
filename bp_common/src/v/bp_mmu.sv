@@ -22,7 +22,7 @@ module bp_mmu
    , input                                            sum_i
    , input                                            uncached_mode_i
    , input                                            nonspec_mode_i
-   , input [hio_width_p-1:0]                       hio_mask_i
+   , input [hio_width_p-1:0]                          hio_mask_i
 
    , input                                            w_v_i
    , input [vtag_width_p-1:0]                         w_vtag_i
@@ -39,6 +39,7 @@ module bp_mmu
    , output logic                                     r_miss_o
    , output logic                                     r_uncached_o
    , output logic                                     r_nonidem_o
+   , output logic                                     r_dram_o
    , output logic                                     r_instr_access_fault_o
    , output logic                                     r_load_access_fault_o
    , output logic                                     r_store_access_fault_o
@@ -120,7 +121,7 @@ module bp_mmu
 
   wire ptag_v_lo                  = tlb_v_lo;
   wire [ptag_width_p-1:0] ptag_lo = tlb_entry_lo.ptag;
-  logic ptag_uncached_lo, ptag_nonidem_lo;
+  logic ptag_uncached_lo, ptag_nonidem_lo, ptag_dram_lo;
   bp_pma
    #(.bp_params_p(bp_params_p))
    pma
@@ -134,6 +135,7 @@ module bp_mmu
 
      ,.uncached_o(ptag_uncached_lo)
      ,.nonidem_o(ptag_nonidem_lo)
+     ,.dram_o(ptag_dram_lo)
      );
 
   // Fault if higher bits of eaddr do not match vaddr MSB
@@ -165,6 +167,7 @@ module bp_mmu
   assign r_miss_o                = r_v_r & ~tlb_v_lo;
   assign r_uncached_o            = r_v_r & tlb_v_lo & ptag_uncached_lo;
   assign r_nonidem_o             = r_v_r & tlb_v_lo & ptag_nonidem_lo;
+  assign r_dram_o                = r_v_r & tlb_v_lo & ptag_dram_lo;
   assign r_instr_access_fault_o  = r_v_r & tlb_v_lo & instr_access_fault_v;
   assign r_load_access_fault_o   = r_v_r & tlb_v_lo & load_access_fault_v;
   assign r_store_access_fault_o  = r_v_r & tlb_v_lo & store_access_fault_v;

@@ -211,7 +211,7 @@ module bp_fe_top
   assign attaboy_pc_li              = fe_cmd_cast_i.vaddr;
 
   logic instr_access_fault_v, instr_page_fault_v;
-  logic ptag_v_li, ptag_uncached_li, ptag_nonidem_li, ptag_miss_li;
+  logic ptag_v_li, ptag_uncached_li, ptag_nonidem_li, ptag_dram_li, ptag_miss_li;
   logic [ptag_width_p-1:0] ptag_li;
 
   bp_pte_leaf_s w_tlb_entry_li;
@@ -252,6 +252,7 @@ module bp_fe_top
      ,.r_miss_o(ptag_miss_li)
      ,.r_uncached_o(ptag_uncached_li)
      ,.r_nonidem_o(ptag_nonidem_li)
+     ,.r_dram_o(ptag_dram_li)
      ,.r_instr_access_fault_o(instr_access_fault_v)
      ,.r_load_access_fault_o()
      ,.r_store_access_fault_o()
@@ -284,8 +285,9 @@ module bp_fe_top
 
      ,.ptag_i(ptag_li)
      ,.ptag_v_i(ptag_v_li)
-     ,.uncached_i(ptag_uncached_li)
-     ,.nonidem_i(ptag_nonidem_li)
+     ,.ptag_uncached_i(ptag_uncached_li)
+     ,.ptag_nonidem_i(ptag_nonidem_li)
+     ,.ptag_dram_i(ptag_dram_li)
      ,.poison_tl_i(icache_poison_tl)
 
      ,.data_o(icache_data_lo)

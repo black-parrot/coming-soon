@@ -62,8 +62,9 @@ module bp_fe_icache
    // TLB and PMA information comes in this cycle
    , input [ptag_width_p-1:0]                         ptag_i
    , input                                            ptag_v_i
-   , input                                            uncached_i
-   , input                                            nonidem_i
+   , input                                            ptag_uncached_i
+   , input                                            ptag_nonidem_i
+   , input                                            ptag_dram_i
    , input                                            poison_tl_i
 
    // Cycle 2: "Tag Verify"
@@ -242,9 +243,10 @@ module bp_fe_icache
     assign hit_v_tl[i] = (tag_mem_data_lo[i].tag == ptag_i) && way_v_tl[i];
   end
   wire cached_hit_tl     = |hit_v_tl;
-  wire fetch_uncached_tl = (fetch_op_tl_r &  uncached_i);
-  wire fetch_cached_tl   = (fetch_op_tl_r & ~uncached_i);
-  wire fill_tl           = (fill_op_tl_r | ~nonidem_i);
+  wire fetch_uncached_tl = (fetch_op_tl_r &  ptag_uncached_i);
+  wire fetch_cached_tl   = (fetch_op_tl_r & ~ptag_uncached_i);
+  wire fill_tl           = (fill_op_tl_r | ~ptag_nonidem_i);
+  wire dram_tl           = (fill_op_tl_r | fetch_op_tl_r) & ptag_dram_i;
 
   logic [assoc_p-1:0] bank_sel_one_hot_tl;
   bsg_decode
@@ -286,7 +288,7 @@ module bp_fe_icache
   logic [assoc_p-1:0]                    bank_sel_one_hot_tv_r;
   logic [assoc_p-1:0]                    way_v_tv_r, hit_v_tv_r;
   logic                                  cached_hit_tv_r;
-  logic                                  fill_tv_r, fencei_op_tv_r, uncached_op_tv_r, cached_op_tv_r;
+  logic                                  fill_tv_r, dram_tv_r, fencei_op_tv_r, uncached_op_tv_r, cached_op_tv_r;
   logic [assoc_p-1:0][bank_width_lp-1:0] ld_data_tv_r;
 
   // fence.i does not check tags
@@ -314,17 +316,17 @@ module bp_fe_icache
      );
 
   bsg_dff_en
-   #(.width_p(paddr_width_p+3*assoc_p+5))
+   #(.width_p(paddr_width_p+3*assoc_p+6))
    tv_stage_reg
     (.clk_i(clk_i)
      ,.en_i(tv_we)
      ,.data_i({paddr_tl
                ,bank_sel_one_hot_tl, way_v_tl, hit_v_tl, cached_hit_tl
-               ,fill_tl, fencei_op_tl_r, fetch_uncached_tl, fetch_cached_tl
+               ,fill_tl, dram_tl, fencei_op_tl_r, fetch_uncached_tl, fetch_cached_tl
                })
      ,.data_o({paddr_tv_r
                ,bank_sel_one_hot_tv_r, way_v_tv_r, hit_v_tv_r, cached_hit_tv_r
-               ,fill_tv_r, fencei_op_tv_r, uncached_op_tv_r, cached_op_tv_r
+               ,fill_tv_r, dram_tv_r, fencei_op_tv_r, uncached_op_tv_r, cached_op_tv_r
                })
      );
 
